@@ -1,11 +1,5 @@
 # Breast Cancer Classification: Data Understanding and Exploratory Analysis
 
-## Project status
-
-**Current phase:** Data audit and exploratory data analysis (EDA) completed; preprocessing and evaluation design planned but not yet executed.
-
-This README documents the work completed so far on the Breast Cancer Wisconsin (Diagnostic) dataset. It records observed findings, the statistical analyses performed, and decisions for the next stage. No predictive model has been trained in this phase.
-
 ## 1. Project objective
 
 The project investigates how supervised machine learning can distinguish benign from malignant breast-cancer samples using numerical measurements of cell nuclei.
