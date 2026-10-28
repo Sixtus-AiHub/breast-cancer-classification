@@ -168,83 +168,140 @@ A Pearson correlation matrix was computed for all 30 numerical predictors. It sh
 
 **Decision:** Keep all 30 features for the initial baseline. Investigate feature selection later as a modeling experiment, with selection performed inside cross-validation. Logistic Regression and Random Forest will provide useful contrasts because they respond differently to correlated predictors.
 
-## 8. Preprocessing plan (planned, not yet executed)
+### Preprocessing and candidate models
 
-| Issue | Current decision | Rationale |
-|---|---|---|
-| Missing values | No imputation initially | Audit found no missing values |
-| Duplicate rows | No removal | Audit found no exact duplicate rows |
-| Target encoding | Malignant = 1; benign = 0 | Makes malignant recall/sensitivity easy to interpret |
-| Scaling | Standardize for regularized Logistic Regression | Predictors have very different scales |
-| Random Forest scaling | Not required by default | Tree-based splits generally are not sensitive to feature scaling |
-| Outliers | Retain initially | Outliers may be genuine observations |
-| Skewness | No automatic transformation | Establish baseline before testing transformations |
-| Feature selection | None for initial baseline | Avoid leakage and establish a comparison point |
+- StandardScaler was included inside the Logistic Regression and SVC pipelines.
+- Random Forest and XGBoost were used without feature scaling.
+- All 30 features were retained in the selected final workflow.
+- The final estimator was `LogisticRegression(C=1, max_iter=5000, random_state=42)` inside a `StandardScaler` pipeline.
 
-Any learned preprocessing, transformation, or feature selection used in prediction should be placed inside a scikit-learn `Pipeline` and fitted within the appropriate training fold.
+## Model comparison
 
-## 9. Evaluation design (planned, not yet executed)
+Nested five-fold cross-validation on the training split produced the following ROC-AUC summaries:
 
-Proposed workflow:
-1. Encode the target as malignant = 1 and benign = 0.
-2. Split once using a stratified 80/20 train/test split and a fixed random seed.
-3. Keep the test set untouched during model selection and tuning.
-4. Use stratified five-fold cross-validation on the training set.
-5. Place scaling and any learned feature selection inside the model pipeline.
-6. Compare a regularized Logistic Regression baseline with a Random Forest baseline.
-7. Choose the model and classification threshold using training data and a predeclared decision procedure.
-8. Evaluate the finalized approach on the test set once.
+| Model | Mean outer-fold ROC-AUC | Standard deviation |
+|---|---:|---:|
+| SVC (RBF) | 0.9954 | 0.0064 |
+| Logistic Regression | 0.9953 | 0.0046 |
+| XGBoost | 0.9939 | 0.0046 |
+| Random Forest | 0.9883 | 0.0072 |
 
-With 569 observations, the expected split is approximately 455 training observations and 114 test observations; exact class counts depend on the stratified split.
+SVC and Logistic Regression were effectively tied by mean ROC-AUC. Logistic Regression was selected for the final workflow because its ranking performance was comparable and its behavior is more straightforward to interpret. The fold standard deviations are descriptive variability, not confidence intervals or formal significance tests.
 
-### Metrics to report
+## Final model and held-out test results
 
-- Recall/sensitivity for malignant cases.
-- Specificity for benign cases.
-- Precision for malignant predictions.
-- F1-score.
-- ROC-AUC.
-- Average precision / precision–recall analysis.
-- Confusion matrix.
-- Accuracy and balanced accuracy as supplementary metrics.
+**Selected workflow:** `StandardScaler` + Logistic Regression, all 30 features, decision threshold **0.40**. Malignant is the positive class.
 
-Accuracy alone will not be the main performance measure. Threshold selection will consider the trade-off between false negatives and false positives. This is an educational project, not a clinically validated diagnostic tool.
+### Test confusion matrix
 
-## 10. Current status and next steps
+Rows are actual classes; columns are predicted classes.
 
-### Completed
-- Dataset loaded and organized into `X`, `y`, and `df`.
-- Missing values and exact duplicate rows audited.
-- Class distribution examined.
-- Numerical summaries reviewed.
-- Histograms and boxplots examined for six high-variability features.
-- Feature distributions compared by diagnosis.
-- Mann–Whitney U tests run for all 30 features, with Benjamini–Hochberg adjustment.
-- Pearson correlation matrix and strongest feature pairs examined.
-- Initial preprocessing and evaluation plan documented.
+| Actual class | Predicted benign | Predicted malignant |
+|---|---:|---:|
+| Benign | 71 (true negative) | 1 (false positive) |
+| Malignant | 2 (false negative) | 40 (true positive) |
 
-### Not yet completed
-- Train/test split.
-- Model pipelines.
-- Cross-validation comparison.
-- Hyperparameter tuning.
-- Threshold selection.
-- Predictive feature selection within cross-validation.
-- Final test evaluation.
-- Model interpretation and uncertainty analysis.
-- Reproducibility checks and final project reporting.
+### Test metrics
 
-### Immediate next notebook task
+| Metric | Result |
+|---|---:|
+| Accuracy | 0.9737 (97.37%) |
+| Malignant recall / sensitivity | 0.9524 (95.24%) |
+| Precision | 0.9756 (97.56%) |
+| Specificity | 0.9861 (98.61%) |
+| F1 score | 0.9639 |
+| ROC-AUC | 0.9960 |
+| Average precision | 0.9943 |
 
-Create the stratified train/test split with `malignant = 1` and `benign = 0`, inspect class counts and proportions, and then build the initial model pipelines without exposing the test set to training or model-selection decisions.
+On this test split, the model identified 40 of 42 malignant samples and missed 2. It correctly classified 71 of 72 benign samples and produced 1 false positive. The observed malignant recall met the project's development target of at least 95%; this is a project criterion, not a clinical recommendation or guarantee. Because the test set contains only 42 malignant samples, one additional missed case would change recall by about 2.38 percentage points.
 
-## 11. Reproducibility notes
+The held-out test set was used for the final evaluation only. **Do not use these test results to tune the model or threshold.**
 
-- Dataset source in the current notebook: `sklearn.datasets.load_breast_cancer`.
-- A fixed random seed of `42` is proposed for the train/test split.
-- The dataset objects and variable names described here reflect the current notebook workflow.
-- Record package versions, random seeds, and final evaluation choices in the project repository before publishing.
-- The statistical tests and correlation analysis documented here were exploratory analyses on the full dataset; they are not a substitute for leakage-safe predictive evaluation.
+## Reproducibility
 
----
-*This README documents the work completed up to the end of EDA and the planned evaluation strategy. Update the status and results as the project progresses.*
+The notebook was run from top to bottom successfully in the current environment. The confirmed project Python executable was:
+
+```text
+.venv\Scripts\python.exe
+```
+
+The environment has XGBoost **3.4.1**, and `requirements.txt` was updated to include:
+
+```text
+xgboost==3.4.1
+```
+
+The current `requirements.txt` is a full `pip freeze`-style list of installed packages. The existing environment's `pip check` reported no broken requirements. A clean-environment installation test has **not** been performed, so successful reproduction in a fresh environment has not yet been confirmed.
+
+To install the listed dependencies in an activated project environment, run:
+
+```bash
+python -m pip install -r requirements.txt
+```
+
+The dataset is loaded through scikit-learn; a separate dataset download is not required for the documented data-loading step.
+
+## Limitations
+
+- This is a small, educational dataset; the results do not establish performance on other populations, institutions, or real-world clinical settings.
+- Threshold selection was performed on training-only out-of-fold predictions, but model and threshold selection can still overfit development data.
+- Cross-validation fold standard deviations are descriptive and should not be interpreted as confidence intervals or formal tests of model superiority.
+- Statistical tests and correlations describe associations in this dataset; they do not establish causation.
+- The selected 0.40 threshold is an educational operating choice, not a clinically validated decision threshold.
+
+## Skills demonstrated
+
+- Data auditing and exploratory data analysis
+- Statistical testing and multiple-comparison adjustment
+- Correlation analysis and multicollinearity awareness
+- Scikit-learn pipelines and preprocessing
+- Stratified cross-validation and nested model evaluation
+- Hyperparameter tuning
+- Leakage-aware out-of-fold threshold selection
+- Feature-selection comparison with RFE
+- Confusion-matrix analysis and classification metrics
+- Reproducibility and documentation
+
+## Post-evaluation error analysis
+
+After the one-time held-out test evaluation, the three misclassified observations were inspected descriptively. This analysis documents the observed errors; it was not used to change the fitted model, the decision threshold, or the reported test metrics.
+
+### Misclassified observations
+
+| Test index label | Actual diagnosis | Predicted diagnosis | Predicted malignant probability | Error type |
+|---:|---|---|---:|---|
+| 455 | Benign | Malignant | 0.509155 (50.92%) | False positive |
+| 73 | Malignant | Benign | 0.061429 (6.14%) | False negative |
+| 190 | Malignant | Benign | 0.314532 (31.45%) | False negative |
+
+The values 455, 73, and 190 are DataFrame index labels, not necessarily original dataset row numbers. Case 455's probability was above the fixed 0.40 threshold. Case 190's probability was below the threshold but closer to it than Case 73's. Case 73 received a particularly low malignant probability despite being malignant in the dataset.
+
+### Selected feature measurements
+
+| Test index label | Worst radius | Worst area | Worst concave points | Mean concave points |
+|---:|---:|---:|---:|---:|
+| 455 (false positive) | 15.05 | 705.6 | 0.07763 | 0.03264 |
+| 73 (false negative) | 16.57 | 812.4 | 0.13830 | 0.05069 |
+| 190 (false negative) | 15.74 | 762.4 | 0.17720 | 0.06618 |
+
+For context, the medians of these features within the held-out test set were:
+
+| Feature | Benign median | Malignant median |
+|---|---:|---:|
+| Worst radius | 13.335 | 20.075 |
+| Worst area | 538.2 | 1248.5 |
+| Worst concave points | 0.07597 | 0.17565 |
+| Mean concave points | 0.023815 | 0.08057 |
+
+All four selected measurements for Case 455 were above the benign-group medians, which may help describe why this benign case received a relatively high malignant probability. For Case 73, all four measurements were below the malignant-group medians. For Case 190, three were below the malignant medians and worst concave points was slightly above its malignant median. These are descriptive comparisons only: group medians are not decision boundaries, and four features cannot fully explain a Logistic Regression prediction based on all 30 features.
+
+### What this analysis does—and does not—show
+
+- The errors had different probability patterns: one false positive just above the threshold and two false negatives below it.
+- The two false negatives were not identical in their selected feature measurements or predicted probabilities.
+- This small, post-evaluation inspection does not establish the cause of any error, prove that the probabilities are calibrated, or establish clinical significance.
+- The observations and findings were not used to tune the model or threshold. The held-out test metrics above remain the final reported results.
+
+## Final project status
+
+The core modeling and evaluation work is complete: exploratory analysis, statistical tests, baseline comparison, hyperparameter tuning, nested cross-validation, RFE comparison, training-only out-of-fold threshold selection, final fitting, one-time held-out test evaluation, notebook execution check, and descriptive post-evaluation error analysis. Remaining publication work is repository housekeeping: place this README as `README.md` in the project repository, ensure the updated `requirements.txt` is included, and commit the final files. A clean-environment installation test has not been completed and is not claimed here.
